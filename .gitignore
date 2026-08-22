@@ -24,3 +24,6 @@ wandb/
 .DS_Store
 .idea/
 .vscode/
+
+# Other
+docs/
