@@ -18,3 +18,15 @@ Maps run IDs to config + result so every paper number is traceable (GEMINI.md §
 | 20260822-052432-a1b9345-dirty-seed0 | 2026-08-22 | a1b9345 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
 | 20260822-052433-a1b9345-dirty-seed0 | 2026-08-22 | a1b9345 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
 | 20260822-052436-a1b9345-dirty-seed0 | 2026-08-22 | a1b9345 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053800-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053802-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053804-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053823-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053825-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053827-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053829-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.0 | -4.43 ± 0.01 | Completed at step 30 |
+| 20260822-053908-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053909-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053912-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.2 | 0.00 ± 0.00 | Completed at step 60 |
+| 20260822-053913-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.0 | -5.19 ± 1.24 | Completed at step 30 |
+| 20260822-053915-7c2af33-dirty-seed0 | 2026-08-22 | 7c2af33 | base.yaml | 0 | simple_spread | 0.0 | -4.73 ± 2.23 | Completed at step 30 |

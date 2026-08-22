@@ -1,0 +1,48 @@
+# Single source of truth for experiment sweep grid (GEMINI.md §8).
+sweep:
+  name: three_way_robustness_sweep
+  output_dir: runs/sweep_phase6
+  
+  arms:
+    none:
+      defense:
+        name: none
+        penalty_coeff: 0.0
+      adv_training:
+        enabled: false
+    lipschitz:
+      defense:
+        name: grad_penalty
+        penalty_coeff: 0.1
+        norm: l2
+      adv_training:
+        enabled: false
+    sa_ppo:
+      defense:
+        name: none
+        penalty_coeff: 0.0
+      adv_training:
+        enabled: true
+        epsilon: 0.05
+        pgd_steps: 5
+        pgd_step_size: 0.01
+        reg_coeff: 1.0
+        norm: linf
+
+  budgets: [0, 1, 3, 5, 10]           # attack budget k (0 = clean anchor)
+  epsilons: [0.01, 0.05, 0.10]        # L-inf perturbation radius
+  seeds: [0, 1, 2]                     # multi-seed evaluation (>= 3 seeds)
+
+  eval:
+    num_episodes: 10
+    eval_seeds: [1000, 1001, 1002]
+
+  env:
+    name: simple_spread
+    n_parallel_envs: 8
+    episode_length: 25
+
+  train:
+    total_steps: 100000
+    n_steps: 128
+    batch_size: 1024

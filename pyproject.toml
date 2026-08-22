@@ -10,6 +10,8 @@ dependencies = [
     "pyyaml",
     "hydra-core",
     "tensorboard",
+    "pandas>=3.0.5",
+    "matplotlib>=3.11.1",
 ]
 
 [project.optional-dependencies]
