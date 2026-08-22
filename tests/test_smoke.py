@@ -130,8 +130,11 @@ def test_end_to_end_smoke_training() -> None:
         config["train"]["n_epochs"] = 2
         config["train"]["log_interval_steps"] = 20
 
-        trainer = Trainer(config=config, run_dir=tmp_path)
+        from admarl.utils.logger import ExperimentLogger
+
+        exp_logger = ExperimentLogger(config=config, base_output_dir=tmp_path)
+        trainer = Trainer(config=config, exp_logger=exp_logger)
         trainer.train()
 
         assert trainer.current_step >= 50
-        assert (tmp_path / "checkpoints" / "final.pt").exists()
+        assert (exp_logger.run_dir / "checkpoints" / "final.pt").exists()
