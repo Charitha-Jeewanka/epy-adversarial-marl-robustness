@@ -34,6 +34,8 @@ Every design and dependency decision must respect this. Specifically:
 
 ---
 
+- **Never pin `torch` in `pyproject.toml`, and never switch CI to a GPU/CUDA torch build.** CPU and CUDA builds are separate wheels that can't be expressed as one dependency, so torch is installed manually per-environment: a CUDA build locally for training, a CPU build in CI (GitHub runners have no GPU). Changing CI to a CUDA build will fail.
+
 ## 3. Tech Stack
 
 - **Language:** Python 3.11+
