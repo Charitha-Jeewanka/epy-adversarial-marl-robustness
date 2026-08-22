@@ -39,5 +39,8 @@ defense:
 
 attack:
   name: none            # none | critic_sensitivity
-  budget_fraction: 0.0  # fraction of timesteps allowed to perturb
-  epsilon: 0.0          # L-inf radius
+  budget_k: 5           # max perturbations per episode
+  budget_fraction: 0.2  # budget fraction
+  epsilon: 0.05         # L-inf perturbation radius
+  norm: linf            # linf | l2
+  sensitivity_threshold: 0.0 # sensitivity magnitude threshold to trigger attack
