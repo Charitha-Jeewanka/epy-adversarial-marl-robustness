@@ -12,6 +12,7 @@ import numpy as np
 import torch
 
 from admarl.algos.mappo import MAPPO
+from admarl.defenses.factory import get_regularizer
 from admarl.envs.vector_env import VectorMARLEnv
 from admarl.training.rollout import RolloutBuffer
 from admarl.utils.checkpoint import load_checkpoint, restore_rng_from_checkpoint, save_checkpoint
@@ -32,6 +33,8 @@ class Trainer:
         self.run_dir = exp_logger.run_dir
         self.ckpt_dir = self.run_dir / "checkpoints"
         self.ckpt_dir.mkdir(parents=True, exist_ok=True)
+
+        self.regularizer = get_regularizer(config)
 
         self.interrupted = False
 
@@ -236,6 +239,7 @@ class Trainer:
                             old_log_probs_b=old_log_probs_b,
                             returns_b=returns_b,
                             advantages_b=advantages_b,
+                            regularizer=self.regularizer,
                         )
                         update_metrics = metrics
 
