@@ -26,3 +26,23 @@ _TODO: `python -m admarl.eval.plot` regenerates all paper figures from logged da
 ## EPyMARL
 EPyMARL is used as the MAPPO/centralized-critic base. Add it as a git submodule
 or vendored reference (not a PyPI dep); document the exact commit for reproducibility.
+
+## PyTorch install notes
+
+PyTorch is intentionally **not** pinned in `pyproject.toml`. The CPU and CUDA
+builds are separate wheels and can't be expressed as a single dependency, so
+torch is installed manually per environment:
+
+- **Local training (GPU):** install the CUDA build matching your driver.
+  Run `nvidia-smi` and read the "CUDA Version" shown top-right — that's the max
+  your driver supports. Use `cu124` if it's >= 12.4, otherwise `cu121`:
+
+      uv pip install torch --index-url https://download.pytorch.org/whl/cu124
+
+  Verify: `python -c "import torch; print(torch.cuda.is_available())"` should print `True`.
+
+- **CI (CPU only):** the CI workflow installs the CPU build itself, because
+  GitHub runners have no GPU. Do not change CI to a CUDA build — it will fail.
+
+CPU and CUDA torch cannot coexist in one environment; installing one replaces
+the other. Keep your local `.venv` on the CUDA build for training.
