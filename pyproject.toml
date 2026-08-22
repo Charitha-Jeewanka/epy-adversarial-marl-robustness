@@ -5,7 +5,8 @@ description = "Lipschitz-regularized critics vs. budget-constrained attacks in c
 requires-python = ">=3.11"
 dependencies = [
     "numpy",
-    "pettingzoo[mpe]",
+    "pettingzoo>=1.25",
+    "mpe2",
     "pyyaml",
     "hydra-core",
     "tensorboard",
