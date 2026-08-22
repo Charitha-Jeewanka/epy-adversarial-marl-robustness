@@ -10,13 +10,28 @@ hardware:
 env:
   name: simple_spread
   n_parallel_envs: 8    # reduce if OOM
+  episode_length: 25
+
+model:
+  hidden_dim: 64
+  num_layers: 2
 
 train:
   total_steps: 1000000
-  batch_size: 1024      # reduce if OOM
+  n_steps: 128          # rollout horizon per env
+  batch_size: 1024      # mini-batch size (reduce if OOM)
+  n_epochs: 10          # PPO optimization epochs per rollout
+  actor_lr: 0.0005
+  critic_lr: 0.0005
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_param: 0.2
+  value_loss_coef: 0.5
+  entropy_coef: 0.01
   grad_clip: 10.0
   checkpoint_every_steps: 20000
   checkpoint_every_minutes: 15
+  log_interval_steps: 1000
 
 defense:
   name: none            # none | grad_penalty
