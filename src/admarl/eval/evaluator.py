@@ -32,6 +32,7 @@ def evaluate_policy(
     """
     env = MPEEnv(env_name=env_name, max_cycles=episode_length)
     episode_returns: list[float] = []
+    episode_catches: list[float] = []
 
     if eval_seeds is None:
         eval_seeds = [1000 + i for i in range(num_episodes)]
@@ -49,6 +50,7 @@ def evaluate_policy(
             attack.reset_episode()
 
         ep_return = 0.0
+        ep_catches = 0.0
 
         for step in range(episode_length):
             obs_tensor = torch.tensor(obs_np, dtype=torch.float32, device=device)
@@ -59,6 +61,7 @@ def evaluate_policy(
                     obs=obs_tensor,
                     state=state_tensor,
                     critic=mappo.critic,
+                    actor=mappo.actor,
                     step=step,
                 )
 
@@ -69,6 +72,9 @@ def evaluate_policy(
             next_obs_np, next_state_np, rewards_np, term_np, trunc_np, _info = env.step(actions_np)
 
             ep_return += float(rewards_np.mean())
+            if (rewards_np >= 10.0).any():
+                ep_catches += 1.0
+
             obs_np = next_obs_np
             state_np = next_state_np
 
@@ -76,13 +82,23 @@ def evaluate_policy(
                 break
 
         episode_returns.append(ep_return)
+        episode_catches.append(ep_catches)
 
     env.close()
 
     mean_ret = float(np.mean(episode_returns)) if episode_returns else 0.0
     std_ret = float(np.std(episode_returns)) if episode_returns else 0.0
+    mean_catches = float(np.mean(episode_catches)) if episode_catches else 0.0
+    std_catches = float(np.std(episode_catches)) if episode_catches else 0.0
+
+    action_changed_frac = 0.0
+    if attack is not None and hasattr(attack, "total_attacked_count") and attack.total_attacked_count > 0:
+        action_changed_frac = float(attack.action_changed_count / attack.total_attacked_count)
 
     return {
         "post_attack_return_mean": mean_ret,
         "post_attack_return_std": std_ret,
+        "catch_rate_mean": mean_catches,
+        "catch_rate_std": std_catches,
+        "action_changed_fraction": action_changed_frac,
     }

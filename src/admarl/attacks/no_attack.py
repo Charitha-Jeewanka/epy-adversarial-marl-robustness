@@ -17,6 +17,7 @@ class NoAttack(BaseAttack):
         obs: torch.Tensor,
         state: torch.Tensor | None = None,
         critic: torch.nn.Module | None = None,
+        actor: torch.nn.Module | None = None,
         step: int = 0,
     ) -> tuple[torch.Tensor, bool]:
         """Return unperturbed observations and False for is_perturbed."""

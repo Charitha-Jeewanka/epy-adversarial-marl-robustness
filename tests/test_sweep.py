@@ -1,10 +1,10 @@
 """Unit tests for sweep harness, resume/skip logic, aggregation, plotting, and smoke sweep (GEMINI.md §9)."""
 from __future__ import annotations
 
+import json
 import tempfile
 from pathlib import Path
 
-import pandas as pd
 import pytest
 import yaml
 
@@ -32,36 +32,34 @@ def test_sweep_config_validation() -> None:
 
 
 def test_aggregation_correctness() -> None:
-    """Test results aggregation from synthetic run directories."""
+    """Test results aggregation from synthetic run directories with completed final.pt checkpoints."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
         # Create synthetic run directories for 2 seeds of 'none' arm
         for seed in [0, 1]:
             run_dir = tmp_path / f"none_k5_eps0.05_seed{seed}"
-            run_dir.mkdir(parents=True)
+            ckpt_dir = run_dir / "checkpoints"
+            ckpt_dir.mkdir(parents=True)
+            (ckpt_dir / "final.pt").touch()
 
             # Write config
             cfg = {
                 "seed": seed,
-                "sweep_meta": {"arm": "none"},
+                "sweep_meta": {"arm": "none", "budget_k": 5, "epsilon": 0.05},
                 "attack": {"budget_k": 5, "epsilon": 0.05},
             }
             with open(run_dir / "resolved_config.yaml", "w", encoding="utf-8") as f:
                 yaml.dump(cfg, f)
 
-            # Write metrics.csv
-            df = pd.DataFrame([
-                {
-                    "step": 100,
-                    "episode_return_mean": -10.0 + seed,
-                    "critic_loss": 0.5,
-                    "policy_loss": 0.2,
-                    "entropy": 0.1,
-                    "regularizer_penalty": 0.0,
-                    "post_attack_return": -15.0 + seed,
-                }
-            ])
-            df.to_csv(run_dir / "metrics.csv", index=False)
+            # Write eval_results.json
+            eval_res = {
+                "post_attack_return_mean": -15.0 + seed,
+                "post_attack_return_std": 1.0,
+                "budget_k": 5,
+                "epsilon": 0.05,
+            }
+            with open(run_dir / "eval_results.json", "w", encoding="utf-8") as f:
+                json.dump(eval_res, f)
 
         # Aggregate results
         aggregated = aggregate_sweep_results(tmp_path)
@@ -75,6 +73,36 @@ def test_aggregation_correctness() -> None:
         assert stat["std"] > 0.0
 
 
+def test_aggregation_excludes_incomplete_runs() -> None:
+    """Test that partial/incomplete runs missing eval_results.json are excluded from aggregation."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+
+        # 1. Valid completed eval run with eval_results.json
+        valid_dir = tmp_path / "eval" / "none_k5_eps0.05_seed0"
+        valid_dir.mkdir(parents=True)
+        with open(valid_dir / "resolved_config.yaml", "w", encoding="utf-8") as f:
+            yaml.dump({"seed": 0, "sweep_meta": {"arm": "none", "budget_k": 5, "epsilon": 0.05}}, f)
+        with open(valid_dir / "eval_results.json", "w", encoding="utf-8") as f:
+            json.dump({"post_attack_return_mean": -22.0}, f)
+
+        # 2. Incomplete run missing eval_results.json
+        incomplete_dir = tmp_path / "eval" / "none_k5_eps0.05_seed1"
+        incomplete_dir.mkdir(parents=True)
+        with open(incomplete_dir / "resolved_config.yaml", "w", encoding="utf-8") as f:
+            yaml.dump({"seed": 1, "sweep_meta": {"arm": "none", "budget_k": 5, "epsilon": 0.05}}, f)
+
+        aggregated = aggregate_sweep_results(tmp_path)
+        summary = aggregated.get("summary", {})
+
+        key = "none_k5_eps0.05"
+        assert key in summary
+        stat = summary[key]
+        assert stat["num_seeds"] == 1
+        assert stat["seeds"] == [0]
+        assert stat["mean"] == pytest.approx(-22.0)
+
+
 def test_plot_generation_synthetic() -> None:
     """Test generate_robustness_plots end-to-end on synthetic run metrics."""
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -82,32 +110,28 @@ def test_plot_generation_synthetic() -> None:
         fig_dir = tmp_path / "figures"
         sweep_dir = tmp_path / "runs"
 
-        # Create synthetic runs for none, lipschitz, sa_ppo
+        # Create synthetic eval runs for none, lipschitz, sa_ppo
         for arm in ["none", "lipschitz", "sa_ppo"]:
             for k in [0, 5]:
-                run_dir = sweep_dir / f"{arm}_k{k}_eps0.05_seed0"
+                run_dir = sweep_dir / "eval" / f"{arm}_k{k}_eps0.05_seed0"
                 run_dir.mkdir(parents=True)
 
                 cfg = {
                     "seed": 0,
-                    "sweep_meta": {"arm": arm},
+                    "sweep_meta": {"arm": arm, "budget_k": k, "epsilon": 0.05},
                     "attack": {"budget_k": k, "epsilon": 0.05},
                 }
                 with open(run_dir / "resolved_config.yaml", "w", encoding="utf-8") as f:
                     yaml.dump(cfg, f)
 
-                df = pd.DataFrame([
-                    {
-                        "step": 100,
-                        "episode_return_mean": -10.0,
-                        "critic_loss": 0.5,
-                        "policy_loss": 0.2,
-                        "entropy": 0.1,
-                        "regularizer_penalty": 0.0,
-                        "post_attack_return": -12.0 if k == 0 else -18.0,
-                    }
-                ])
-                df.to_csv(run_dir / "metrics.csv", index=False)
+                eval_data = {
+                    "post_attack_return_mean": -12.0 if k == 0 else -18.0,
+                    "post_attack_return_std": 1.0,
+                    "budget_k": k,
+                    "epsilon": 0.05,
+                }
+                with open(run_dir / "eval_results.json", "w", encoding="utf-8") as f:
+                    json.dump(eval_data, f)
 
         generated = generate_robustness_plots(sweep_dir=sweep_dir, output_dir=fig_dir)
         assert len(generated) >= 3
@@ -117,7 +141,7 @@ def test_plot_generation_synthetic() -> None:
 
 
 def test_resume_skip_logic() -> None:
-    """Test that completed runs with final.pt are skipped by the sweep harness."""
+    """Test that completed runs with eval_results.json are skipped by the sweep harness."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
 
@@ -145,10 +169,19 @@ def test_resume_skip_logic() -> None:
         with open(sweep_cfg_file, "w", encoding="utf-8") as f:
             yaml.dump(sweep_cfg, f)
 
-        # Create mock completed run folder
-        completed_folder = tmp_path / "none_k0_eps0.05_seed0" / "checkpoints"
-        completed_folder.mkdir(parents=True)
-        (completed_folder / "final.pt").touch()
+        # Create mock completed model folder and eval folder
+        model_folder = tmp_path / "models" / "none_seed0" / "checkpoints"
+        model_folder.mkdir(parents=True)
+        import torch
+
+        from admarl.algos.mappo import MAPPO
+        mock_mappo = MAPPO(obs_dim=18, state_dim=54, action_dim=5, num_agents=3)
+        torch.save({"model_state": mock_mappo.state_dict()}, model_folder / "final.pt")
+
+        eval_folder = tmp_path / "eval" / "none_k0_eps0.05_seed0"
+        eval_folder.mkdir(parents=True)
+        with open(eval_folder / "eval_results.json", "w", encoding="utf-8") as f:
+            json.dump({"post_attack_return_mean": -20.0}, f)
 
         # Run sweep
         completed_dirs = run_sweep(sweep_cfg_file)

@@ -18,6 +18,8 @@ class BaseAttack(ABC):
         self.epsilon = epsilon
         self.norm = norm
         self.perturbations_used = 0
+        self.action_changed_count = 0
+        self.total_attacked_count = 0
 
     def reset_episode(self) -> None:
         """Reset per-episode perturbation counter."""
@@ -29,6 +31,7 @@ class BaseAttack(ABC):
         obs: torch.Tensor,
         state: torch.Tensor | None = None,
         critic: torch.nn.Module | None = None,
+        actor: torch.nn.Module | None = None,
         step: int = 0,
     ) -> tuple[torch.Tensor, bool]:
         """Return (perturbed_obs, is_perturbed).
@@ -37,6 +40,7 @@ class BaseAttack(ABC):
             obs: (batch_size, num_agents, obs_dim) or (num_agents, obs_dim) observation tensor
             state: Optional centralized state tensor
             critic: Optional centralized critic neural network
+            actor: Optional actor policy neural network
             step: Timestep index
 
         Returns:
