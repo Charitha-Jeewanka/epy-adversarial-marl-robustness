@@ -29,6 +29,9 @@ def validate_config(config: dict[str, Any]) -> None:
                 raise ValueError(f"Missing required key '{key}' in sweep config.")
         return
 
+    if "spike" in config:
+        return
+
     required_sections = ["seed", "hardware", "env", "train"]
     for section in required_sections:
         if section not in config:

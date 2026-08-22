@@ -1,4 +1,4 @@
-"""Sweep results aggregation utility (GEMINI.md §8)."""
+"""Results aggregation utilities for Phase 6 sweep harness (GEMINI.md §8)."""
 from __future__ import annotations
 
 import json
@@ -14,15 +14,18 @@ logger = logging.getLogger(__name__)
 
 
 def aggregate_sweep_results(sweep_dir: Path | str) -> dict[str, Any]:
-    """Scan all run subdirectories in sweep_dir and aggregate summary statistics.
+    """Scan all completed cell subdirectories in sweep_dir and aggregate summary statistics.
 
     Args:
-        sweep_dir: Directory containing individual sweep run subdirectories
+        sweep_dir: Directory containing individual sweep cell run subdirectories
 
     Returns:
         Dictionary containing grouped statistics (mean, std, CI) per (arm, k, epsilon)
     """
     sweep_path = Path(sweep_dir)
+    if (sweep_path / "eval").exists():
+        sweep_path = sweep_path / "eval"
+
     if not sweep_path.exists():
         return {"records": [], "summary": {}}
 
@@ -33,38 +36,25 @@ def aggregate_sweep_results(sweep_dir: Path | str) -> dict[str, Any]:
             continue
 
         config_file = run_dir / "resolved_config.yaml"
-        metrics_file = run_dir / "metrics.csv"
-        meta_file = run_dir / "meta.json"
+        eval_file = run_dir / "eval_results.json"
 
-        if not (config_file.exists() and metrics_file.exists()):
+        # Require both resolved_config.yaml and eval_results.json in the cell directory
+        if not (config_file.exists() and eval_file.exists()):
             continue
 
         try:
             with open(config_file, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
 
-            meta = {}
-            if meta_file.exists():
-                with open(meta_file, encoding="utf-8") as f:
-                    meta = json.load(f)
-
-            df = pd.read_csv(metrics_file)
-            if df.empty:
-                continue
-
-            last_row = df.iloc[-1].to_dict()
+            with open(eval_file, encoding="utf-8") as f:
+                eval_data = json.load(f)
 
             arm = config.get("sweep_meta", {}).get("arm", "unknown")
-            k = config.get("attack", {}).get("budget_k", 0)
-            eps = config.get("attack", {}).get("epsilon", 0.0)
-            seed = config.get("seed", 0)
+            k = int(config.get("sweep_meta", {}).get("budget_k", config.get("attack", {}).get("budget_k", 0)))
+            eps = float(config.get("sweep_meta", {}).get("epsilon", config.get("attack", {}).get("epsilon", 0.0)))
+            seed = int(config.get("seed", 0))
 
-            post_attack_return = float(last_row.get("post_attack_return", last_row.get("episode_return_mean", 0.0)))
-            eval_file = run_dir / "eval_results.json"
-            if eval_file.exists():
-                with open(eval_file, encoding="utf-8") as f:
-                    eval_data = json.load(f)
-                    post_attack_return = float(eval_data.get("post_attack_return_mean", post_attack_return))
+            post_attack_return = float(eval_data.get("post_attack_return_mean", 0.0))
 
             records.append({
                 "arm": arm,
@@ -72,10 +62,6 @@ def aggregate_sweep_results(sweep_dir: Path | str) -> dict[str, Any]:
                 "epsilon": eps,
                 "seed": seed,
                 "post_attack_return": post_attack_return,
-                "episode_return_mean": float(last_row.get("episode_return_mean", 0.0)),
-                "critic_loss": float(last_row.get("critic_loss", 0.0)),
-                "policy_loss": float(last_row.get("policy_loss", 0.0)),
-                "git_commit": meta.get("git", {}).get("short_commit", "unknown"),
                 "run_dir": str(run_dir),
             })
         except (OSError, KeyError, ValueError, json.JSONDecodeError) as err:

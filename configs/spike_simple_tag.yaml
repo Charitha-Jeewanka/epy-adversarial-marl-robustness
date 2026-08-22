@@ -1,0 +1,31 @@
+# Configuration for simple_tag experimental spike probe (GEMINI.md §8)
+spike:
+  name: simple_tag_spike
+  output_dir: runs/spike_simple_tag
+  
+  arm:
+    defense:
+      name: none
+      penalty_coeff: 0.0
+    adv_training:
+      enabled: false
+
+  seeds: [0, 1, 2]
+
+  eval:
+    num_episodes: 30
+    eval_seeds: [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010, 3011, 3012, 3013, 3014, 3015, 3016, 3017, 3018, 3019, 3020, 3021, 3022, 3023, 3024, 3025, 3026, 3027, 3028, 3029]
+
+  env:
+    name: simple_tag
+    n_parallel_envs: 8
+    episode_length: 25
+    num_obstacles: 3
+    prey_max_speed: 1.00
+    prey_accel: 3.0
+    shaping_coeff: 0.1
+
+  train:
+    total_steps: 400000
+    n_steps: 128
+    batch_size: 1024
