@@ -12,6 +12,10 @@ class BaseCriticRegularizer(ABC):
     Must return a finite scalar tensor; non-finite values raise (GEMINI.md §7).
     """
 
+    def __init__(self, penalty_coeff: float = 0.0, norm: str = "l2") -> None:
+        self.penalty_coeff = penalty_coeff
+        self.norm = norm
+
     @abstractmethod
     def penalty(
         self,
