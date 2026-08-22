@@ -4,6 +4,7 @@ from __future__ import annotations
 import torch
 
 from admarl.attacks.base import BaseAttack
+from admarl.utils.pgd import pgd_step, project_epsilon_ball
 
 
 class CriticSensitivityAttack(BaseAttack):
@@ -78,18 +79,14 @@ class CriticSensitivityAttack(BaseAttack):
         # Map state gradient back to observation space shape
         grad_obs = grad.reshape(obs_tensor.shape)
 
-        # Generate bounded perturbation
-        if self.norm.lower() == "linf":
-            delta = -self.epsilon * torch.sign(grad_obs)
-        elif self.norm.lower() == "l2":
-            norm_val = torch.norm(grad_obs.reshape(grad_obs.shape[0], -1), p=2, dim=-1, keepdim=True)
-            norm_val = norm_val.unsqueeze(-1) + 1e-8
-            delta = -self.epsilon * (grad_obs / norm_val)
-        else:
-            raise ValueError(f"Unsupported norm: {self.norm}. Supported norms: 'linf', 'l2'")
+        # Map state gradient back to observation space shape
+        grad_obs = grad.reshape(obs_tensor.shape)
 
-        # Projection into strict epsilon-ball
-        perturbed_obs_batched = torch.clamp(obs_tensor + delta, obs_tensor - self.epsilon, obs_tensor + self.epsilon)
+        # Generate bounded perturbation using shared PGD primitive (maximize=False to minimize state value)
+        unprojected_obs = pgd_step(obs_tensor, grad_obs, self.epsilon, norm=self.norm, maximize=False)
+
+        # Projection into strict epsilon-ball using shared primitive
+        perturbed_obs_batched = project_epsilon_ball(obs_tensor, unprojected_obs, self.epsilon, norm=self.norm)
 
         # Defensive numerical check (GEMINI.md §7)
         if not torch.isfinite(perturbed_obs_batched).all():

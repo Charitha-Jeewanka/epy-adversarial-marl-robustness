@@ -60,6 +60,8 @@ class ExperimentLogger:
         "policy_loss",
         "entropy",
         "regularizer_penalty",
+        "adv_reg_loss",
+        "train_epsilon",
         "post_attack_return",
         "attack_budget",
         "epsilon",

@@ -37,6 +37,14 @@ defense:
   name: none            # none | grad_penalty
   penalty_coeff: 0.0
 
+adv_training:
+  enabled: false        # false | true (SA-PPO continuous adversarial training)
+  epsilon: 0.05         # train-time perturbation radius
+  pgd_steps: 5          # inner PGD steps (0 = disabled)
+  pgd_step_size: 0.01   # inner PGD step size
+  reg_coeff: 1.0        # weight on KL robustness loss
+  norm: linf            # linf | l2
+
 attack:
   name: none            # none | critic_sensitivity
   budget_k: 5           # max perturbations per episode
