@@ -12,7 +12,7 @@ import numpy as np
 import torch
 
 from admarl.algos.mappo import MAPPO
-from admarl.defenses.factory import get_regularizer
+from admarl.defenses.factory import get_regularizer, get_training_defense
 from admarl.envs.vector_env import VectorMARLEnv
 from admarl.training.rollout import RolloutBuffer
 from admarl.utils.checkpoint import load_checkpoint, restore_rng_from_checkpoint, save_checkpoint
@@ -35,6 +35,7 @@ class Trainer:
         self.ckpt_dir.mkdir(parents=True, exist_ok=True)
 
         self.regularizer = get_regularizer(config)
+        self.training_defense = get_training_defense(config)
 
         self.interrupted = False
 
@@ -240,6 +241,7 @@ class Trainer:
                             returns_b=returns_b,
                             advantages_b=advantages_b,
                             regularizer=self.regularizer,
+                            training_defense=self.training_defense,
                         )
                         update_metrics = metrics
 
@@ -256,6 +258,8 @@ class Trainer:
                         "critic_loss": update_metrics.get("critic_loss", 0.0),
                         "entropy": update_metrics.get("entropy", 0.0),
                         "regularizer_penalty": update_metrics.get("reg_loss", 0.0),
+                        "adv_reg_loss": update_metrics.get("adv_reg_loss", 0.0),
+                        "train_epsilon": update_metrics.get("train_epsilon", 0.0),
                     }
 
                     self.exp_logger.log_step(self.current_step, step_metrics)

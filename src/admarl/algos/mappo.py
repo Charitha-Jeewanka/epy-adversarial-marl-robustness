@@ -9,6 +9,7 @@ from torch import nn, optim
 
 from admarl.algos.models import ActorNetwork, CentralizedCriticNetwork
 from admarl.defenses.base import BaseCriticRegularizer
+from admarl.defenses.training_defense import BaseTrainingDefense
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,7 @@ class MAPPO:
         returns_b: torch.Tensor,
         advantages_b: torch.Tensor,
         regularizer: BaseCriticRegularizer | None = None,
+        training_defense: BaseTrainingDefense | None = None,
     ) -> dict[str, float]:
         """Execute PPO update on a batch of experience.
 
@@ -122,6 +124,13 @@ class MAPPO:
         entropy_loss = -entropy.mean()
         actor_loss = policy_loss + self.entropy_coef * entropy_loss
 
+        # Training defense (e.g. SA-PPO adversarial training) if provided
+        adv_reg_loss = torch.tensor(0.0, device=self.device)
+        adv_metrics: dict[str, float] = {}
+        if training_defense is not None:
+            adv_reg_loss, adv_metrics = training_defense.compute_robust_loss(self.actor, obs_b, actions_b)
+            actor_loss = actor_loss + adv_reg_loss
+
         # Evaluate critic
         values = self.critic(state_b)
         value_loss = 0.5 * ((values - returns_b) ** 2).mean()
@@ -138,6 +147,7 @@ class MAPPO:
             ("actor_loss", actor_loss),
             ("critic_loss", critic_loss),
             ("reg_loss", reg_loss),
+            ("adv_reg_loss", adv_reg_loss),
         ]:
             if not torch.isfinite(loss_val):
                 raise RuntimeError(f"Non-finite loss encountered in MAPPO update: {loss_name} = {loss_val.item()}")
@@ -159,6 +169,8 @@ class MAPPO:
             "entropy": entropy.mean().item(),
             "critic_loss": value_loss.item(),
             "reg_loss": reg_loss.item(),
+            "adv_reg_loss": float(adv_reg_loss.item()),
+            "train_epsilon": adv_metrics.get("train_epsilon", 0.0),
             "actor_grad_norm": float(actor_grad_norm),
             "critic_grad_norm": float(critic_grad_norm),
         }
