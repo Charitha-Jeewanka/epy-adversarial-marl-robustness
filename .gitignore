@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Experiment artifacts (never in git — GEMINI.md §5)
+runs/
+checkpoints/
+outputs/
+logs/
+datasets/
+data/
+wandb/
+*.ckpt
+*.pt
+*.pth
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
