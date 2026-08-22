@@ -22,6 +22,13 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
 
 def validate_config(config: dict[str, Any]) -> None:
     """Validate required sections and fields in config."""
+    if "sweep" in config:
+        sweep_cfg = config["sweep"]
+        for key in ["arms", "budgets", "epsilons", "seeds", "env", "train"]:
+            if key not in sweep_cfg:
+                raise ValueError(f"Missing required key '{key}' in sweep config.")
+        return
+
     required_sections = ["seed", "hardware", "env", "train"]
     for section in required_sections:
         if section not in config:
