@@ -8,7 +8,7 @@ from admarl.utils.pgd import pgd_step, project_epsilon_ball
 
 
 class CriticSensitivityAttack(BaseAttack):
-    """Observation attack targeting centralized critic sensitivity with strict budget and epsilon-ball bounds."""
+    """Observation attack targeting centralized critic sensitivity with multi-step PGD and targeted worst-case actions."""
 
     def __init__(
         self,
@@ -16,15 +16,21 @@ class CriticSensitivityAttack(BaseAttack):
         epsilon: float = 0.05,
         norm: str = "linf",
         sensitivity_threshold: float = 0.0,
+        pgd_steps: int = 5,
+        step_size: float | None = None,
     ) -> None:
         super().__init__(budget_k=budget_k, epsilon=epsilon, norm=norm)
         self.sensitivity_threshold = sensitivity_threshold
+        self.pgd_steps = pgd_steps
+        self.step_size = step_size
+        self.worst_case_hit_count = 0
 
     def reset_episode(self) -> None:
         """Reset budget and step tracking at episode start."""
         super().reset_episode()
         self.action_changed_count = getattr(self, "action_changed_count", 0)
         self.total_attacked_count = getattr(self, "total_attacked_count", 0)
+        self.worst_case_hit_count = getattr(self, "worst_case_hit_count", 0)
 
     def perturb(
         self,
@@ -34,13 +40,13 @@ class CriticSensitivityAttack(BaseAttack):
         actor: torch.nn.Module | None = None,
         step: int = 0,
     ) -> tuple[torch.Tensor, bool]:
-        """Perturb observations to force actor action changes if budget remains.
+        """Perturb observations using targeted multi-step PGD in the epsilon-ball.
 
         Args:
             obs: Observation tensor of shape (batch_size, num_agents, obs_dim) or (num_agents, obs_dim)
             state: Centralized state tensor of shape (batch_size, state_dim) or (state_dim,)
-            critic: Centralized critic model mapping state -> values (used for sensitivity check)
-            actor: Actor model mapping obs -> action distribution (used for perturbation crafting)
+            critic: Centralized critic model (optional sensitivity check)
+            actor: Actor model mapping obs -> action distribution
             step: Environment step index
 
         Returns:
@@ -74,39 +80,37 @@ class CriticSensitivityAttack(BaseAttack):
                 if sensitivity_score < self.sensitivity_threshold:
                     return obs.clone(), False
 
-        # Craft perturbation targeting actor action probabilities
-        obs_var = obs_tensor.clone().detach().to(device).requires_grad_(True)
-
-        if actor is not None:
-            with torch.enable_grad():
-                dist = actor(obs_var)
-                clean_actions = torch.argmax(dist.logits, dim=-1)
-                # Loss minimizes log probability of clean argmax actions
-                loss = -dist.log_prob(clean_actions).sum()
-                loss.backward()
-            grad_obs = obs_var.grad
-        else:
-            # Fallback to critic gradient if actor is not provided
-            if critic is None:
-                return obs.clone(), False
-            state_var = state_tensor.clone().detach().to(device).requires_grad_(True)
-            with torch.enable_grad():
-                values = critic(state_var)
-                values.sum().backward()
-            grad_state = state_var.grad
-            grad_obs = grad_state.reshape(obs_tensor.shape) if grad_state is not None else None
-
-        if grad_obs is None:
+        if actor is None:
             return obs.clone(), False
 
-        if not torch.isfinite(grad_obs).all():
-            raise RuntimeError("Non-finite value (NaN/Inf) detected in gradients during attack!")
+        # Identify worst-case target action per agent (argmin logit under clean observation)
+        with torch.no_grad():
+            clean_dist = actor(obs_tensor)
+            clean_actions = torch.argmax(clean_dist.logits, dim=-1)
+            worst_target_actions = torch.argmin(clean_dist.logits, dim=-1)
 
-        # Generate bounded perturbation using shared PGD primitive (maximize=True for loss)
-        unprojected_obs = pgd_step(obs_tensor, grad_obs, self.epsilon, norm=self.norm, maximize=True)
+        # Multi-step targeted PGD in the epsilon-ball
+        perturbed_obs_batched = obs_tensor.clone().detach()
+        alpha = self.step_size if self.step_size is not None else (self.epsilon / max(1, self.pgd_steps / 2.5))
 
-        # Projection into strict epsilon-ball using shared primitive
-        perturbed_obs_batched = project_epsilon_ball(obs_tensor, unprojected_obs, self.epsilon, norm=self.norm)
+        for _ in range(self.pgd_steps):
+            obs_var = perturbed_obs_batched.clone().detach().requires_grad_(True)
+            with torch.enable_grad():
+                dist = actor(obs_var)
+                # Targeted loss: maximize probability of worst-case target actions
+                loss = dist.log_prob(worst_target_actions).sum()
+                loss.backward()
+
+            grad_obs = obs_var.grad
+            if grad_obs is None:
+                break
+
+            if not torch.isfinite(grad_obs).all():
+                raise RuntimeError("Non-finite value (NaN/Inf) detected in gradients during PGD attack!")
+
+            # PGD step with maximize=True (increase probability of worst-case action)
+            step_obs = pgd_step(perturbed_obs_batched, grad_obs, alpha, norm=self.norm, maximize=True)
+            perturbed_obs_batched = project_epsilon_ball(obs_tensor, step_obs, self.epsilon, norm=self.norm)
 
         # Defensive numerical check (GEMINI.md §7)
         if not torch.isfinite(perturbed_obs_batched).all():
@@ -115,15 +119,16 @@ class CriticSensitivityAttack(BaseAttack):
         # Unbatch if input was single-sample
         perturbed_obs = perturbed_obs_batched.squeeze(0) if not is_batched else perturbed_obs_batched
 
-        # Increment budget counter and track action changes
+        # Increment budget counter and track action changes & worst-case hits
         self.perturbations_used += 1
         if hasattr(self, "total_attacked_count"):
-            self.total_attacked_count += 1
-            if actor is not None:
-                with torch.no_grad():
-                    clean_a = torch.argmax(actor(obs_tensor).logits, dim=-1)
-                    adv_a = torch.argmax(actor(perturbed_obs_batched).logits, dim=-1)
-                    if not torch.equal(clean_a, adv_a):
-                        self.action_changed_count += 1
+            self.total_attacked_count += len(clean_actions.view(-1))
+            with torch.no_grad():
+                adv_a = torch.argmax(actor(perturbed_obs_batched).logits, dim=-1)
+                num_flips = int((clean_actions != adv_a).sum().item())
+                num_worst_hits = int((adv_a == worst_target_actions).sum().item())
+
+                self.action_changed_count += num_flips
+                self.worst_case_hit_count += num_worst_hits
 
         return perturbed_obs.detach(), True
