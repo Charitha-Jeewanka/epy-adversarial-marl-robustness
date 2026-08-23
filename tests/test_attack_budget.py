@@ -1,6 +1,8 @@
 """Budget/epsilon-ball invariants and safety tests for attacks (GEMINI.md §9)."""
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 import torch
 from torch import nn
